@@ -7,7 +7,7 @@ Basic compile-time checks:
     - Access mode for both registers and fields (more than ten for now)
     - Size of value to write to the register
 
-## Advantages
+## **Advantages**
 
 1. Extended compile-time checks for the registers and fields ownership, size, access, overflowing, et cetera
 2. As effective (size and speed) as the standard C CMSIS (in the some particular cases even more effective).
@@ -21,9 +21,9 @@ Basic compile-time checks:
 10. Cross-platform and cross-environment.
 11. Support dynamic writing for the operations that are really needed it.
 
-## Description
+## **Description**
 
-### Abstract
+### **Abstract**
 
 CMSIS files from the chip-makers is the common way to work with MCUs on the low-level.
 However, these files have one big problem - it is unsafety.
@@ -53,20 +53,20 @@ inflexibility, loosing some basic opportunities against CMSIS, et cetera.
 
 Summarizing, cpp_register library gets advantages from both traditional and modern approaches without negative effects. Apart from that, author allowed himself to add some general improvements.
 
-### Features
+### **Features**
 
 The only one requirement - at least C++17 standard (fully supported by the most of compilers).
 
 The library basically contain the only one file - registers.hpp. It is contains three interface classes:
 
-1. ConstVal - helper class to transform register value to constexpr value as a type property. This class allows to resolve the problem (constexpr function parameters are not constexpr).
+1. **ConstVal** - helper class to transform register value to constexpr value as a type property. This class allows to resolve the problem (constexpr function parameters are not constexpr).
 Supported a bit '|' (or) operation.
-2. Field - type for registers' fields.
-3. Register - type for registers.
+2. **Field** - type for registers' fields.
+3. **Register** - type for registers.
 
-Access mode for the fields and registers - defined in the AccessMode enumeration.
+Access mode for the fields and registers - defined in the **AccessMode** enumeration.
 
-is_register_v - is inline template constexpr variable to check the value is one of (const) uint8_t, uint16_t, uint32_t.
+**is_register_v** - is inline template constexpr variable to check the value is one of (const) uint8_t, uint16_t, uint32_t.
 
 Some supported operations (stm32f407 as example):
 
@@ -82,7 +82,7 @@ RCC->AHB1ENR |= RCC_AHB1ENR::GPIODEN;
 RCC->AHB1ENR &= RCC_AHB1ENR::GPIODEN;
 ```
 
-Note: The traditional '&=~' was changed to '&=' on purpose but it is possible to use '&=~' instead. (Basically, '~' has no effect for fields).
+**Note:** The traditional '&=\~' was replaced by '&=' on purpose but it is possible to use '&=~' instead. (Basically, '\~' has no effect for fields).
 
 - Assign bit(s) '=' in the register:
 
@@ -122,7 +122,7 @@ RCC->AHB1ENR = &magic;
 uint32_t address = &(RCC->AHB1ENR);
 ```
 
-Operate value (from the driver or app level, for example):
+- Operate value (from the driver or app level, for example):
 
 ```cpp
 static constexpr auto SYSTEM_MHZ = 16UL;
@@ -130,41 +130,43 @@ static constexpr auto SYST_PERIOD = ConstVal<(SYSTEM_MHZ * 1000000UL) - 1>{};
 SYST->RVR = SYST_RVR::RELOAD(SYST_PERIOD);
 ```
 
-Operate several fields ad once:
+- Operate several fields ad once:
 
 ```cpp
 SYST->CSR |= (SYST_CSR::CLKSOURCE | SYST_CSR::ENABLE);
 ```
 
-Operations with several same fields. It is two forms for the user choice.
-Full:
+- Operations with several same fields. It is two forms for the user choice.
 
 ```cpp
+//Full form
 //Set GPIOD pin 12, 13, 14, 15 as output
 GPIOD->MODER |= (GPIO_MODER::MODER[NUM_12](NUM_0) | GPIO_MODER::MODER[NUM_13](NUM_0) 
                 | GPIO_MODER::MODER[NUM_14](NUM_0) | GPIO_MODER::MODER[NUM_15](NUM_0));
 ```
 
-Short:
-
 ```cpp
+//Short form
 //Set GPIOD pin 12, 13, 14, 15 as output
 GPIOD->MODER |= GPIO_MODER::MODER[NUM_12 | NUM_13 | NUM_14 | NUM_15](NUM_0);
 ```
 
-Automated bit-band:
+**Automated bit-band**:
+
 Useful feature to slightly improve performance for Cortex-M3/M4.
 To enable this it is needed to define CORTEX_M_BIT_BAND for the project (-DCORTEX_M_BIT_BAND). In this case, for the set and reset operation the bit-band will be applied automatically if the expression is appropriate for the condition:
 
 - The register address in the bit-band region.
 - Only one bit of the register is needed to be set or reset.
 
-### How to use?
+### **How to use?**
 
 The reference to use this library was located to the example folder.
 It is minimal comprehensive project with LED blinking for stm32f407.
 It was written with VSCode + Clang + Make. Also it is builded with
 '-Oz' optimization and strict environment '-Werror -Wall -Wextra -Wpedantic -Weverything -pedantic-errors'.
+
+Apart from that, the same gcc example is also located there.
 
 First of all, you have to create the register description header files (as at CMSIS) where you should describe the registers and fields you needed (include register.hpp there). The parameters you should pass to Field and Registers are clear and can be found in the Reference manual for the specific chip.
 
@@ -180,9 +182,9 @@ you want to generate. (I case only file was passed - all file's modules will be 
 In the example/stm32f407 folder you can see the result for:
 >py .\svd2cpp.py STM32F407.svd GPIO STK RCC
 
-It is supposed to use the script to receive only the draft of
-the description because *.svd files contain a ton inaccuracies
+**It is supposed to use the script to receive only the draft of
+the description because \*.svd files contain a ton inaccuracies
 and a bit of errors. Apart from that, I am too lazy to write
-really comprehensive script for all cases.
+really comprehensive script for all cases.**
 
 After the register description file finished, it can be included to the project source files and used to write drivers.

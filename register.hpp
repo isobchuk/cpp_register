@@ -363,7 +363,7 @@ public:
  * @tparam access The access mode for the register
  * @tparam SizeT The size type of the register
  */
-template <const RegisterAddress address, const uint8_t access, typename SizeT, typename FieldT = void>
+template <const RegisterAddress address, const uint8_t access, typename SizeT, typename FieldT>
 class Register final {
   static constexpr auto sc_Address = address; // The register address
   static constexpr auto sc_Access = access;   // The register access mode
