@@ -5,7 +5,7 @@
  *        any influence to run-time that as written with templates,
  *        constexpr objects, static_assert, overloading and a bit SFINAE.
  *
- * @version 0.1
+ * @version 0.2
  * @date 2023-03-09
  *
  * @copyright Ivan Sobchuk (c) 2023
@@ -53,9 +53,9 @@ using RegisterAddress = uint32_t;
  * @tparam RegisterValue is type to be checked
  */
 template <typename RegisterValue>
-inline constexpr auto is_register_v = ((is_same_v<remove_cv_t<RegisterValue>, uint8_t>) ||
-                                       (is_same_v<remove_cv_t<RegisterValue>, uint16_t>) ||
-                                       (is_same_v<remove_cv_t<RegisterValue>, uint32_t>));
+inline constexpr auto is_register_v =
+    ((is_same_v<remove_cv_t<RegisterValue>, uint8_t>) || (is_same_v<remove_cv_t<RegisterValue>, uint16_t>) ||
+     (is_same_v<remove_cv_t<RegisterValue>, uint32_t>));
 
 /**
  * @brief Struct to make const value (as a type property) from integer
@@ -226,7 +226,7 @@ class Field final : FieldMark {
   static_assert((is_register_v<decltype(value)>), "Peripheral field  The value should be the register type!");
   static_assert((value), "Peripheral field  The value should be not zero!");
   static_assert(
-      ((fieldSize * fieldNumber) && ((fieldSize * fieldNumber) <= (sizeof(decltype(value)) * 8))),
+      ((0 != (fieldSize * fieldNumber)) && ((fieldSize * fieldNumber) <= (sizeof(decltype(value)) * 8))),
       "Peripheral field  The field size and number should be more than 0 and less than sizeof(Register::Size)!");
 
   // Flag of the short form for multi-filed operations
@@ -363,7 +363,8 @@ public:
  * @tparam access The access mode for the register
  * @tparam SizeT The size type of the register
  */
-template <const RegisterAddress address, const uint8_t access, typename SizeT = uint32_t> class Register final {
+template <const RegisterAddress address, const uint8_t access, typename SizeT, typename FieldT = void>
+class Register final {
   static constexpr auto sc_Address = address; // The register address
   static constexpr auto sc_Access = access;   // The register access mode
 
@@ -377,7 +378,8 @@ template <const RegisterAddress address, const uint8_t access, typename SizeT = 
   }
 
 public:
-  using Size = SizeT; // Type of the value
+  using Size = SizeT;   // Type of the value
+  using Field = FieldT; // Type to identify field
 
   /**
    * @brief 'Set' or '|=' for the register
@@ -387,16 +389,16 @@ public:
    */
   template <typename Value>
   inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator|=(const Value) const noexcept {
-    static_assert((is_same_v<const Register, typename Value::Register>),
+    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [set] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::SET),
                   "Peripheral registers [set] Invalid operation for the field!");
 
     constexpr auto bitBandAddress = get_bit_band_address(Value{});
     if constexpr (sc_Address != bitBandAddress) {
-      *reinterpret_cast<volatile SizeT *>(bitBandAddress) = 1;
+      *reinterpret_cast<volatile Size *>(bitBandAddress) = 1;
     } else {
-      *reinterpret_cast<volatile SizeT *>(sc_Address) |= Value::sc_Value;
+      *reinterpret_cast<volatile Size *>(sc_Address) |= Value::sc_Value;
     }
   }
 
@@ -408,16 +410,16 @@ public:
    */
   template <typename Value>
   inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator&=(const Value) const noexcept {
-    static_assert((is_same_v<const Register, typename Value::Register>),
+    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [reset] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::RESET),
                   "Peripheral registers [reset] Invalid operation for the field!");
 
     constexpr auto bitBandAddress = get_bit_band_address(Value{});
     if constexpr (sc_Address != bitBandAddress) {
-      *reinterpret_cast<volatile SizeT *>(bitBandAddress) = 0;
+      *reinterpret_cast<volatile Size *>(bitBandAddress) = 0;
     } else {
-      *reinterpret_cast<volatile SizeT *>(sc_Address) &= ~Value::sc_Value;
+      *reinterpret_cast<volatile Size *>(sc_Address) &= ~Value::sc_Value;
     }
   }
 
@@ -429,12 +431,12 @@ public:
    */
   template <typename Value>
   inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator=(const Value) const noexcept {
-    static_assert((is_same_v<const Register, typename Value::Register>),
+    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [assign] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::ASSIGN),
                   "Peripheral registers [assign] Invalid operation for the field!");
 
-    *reinterpret_cast<volatile SizeT *>(sc_Address) = Value::sc_Value;
+    *reinterpret_cast<volatile Size *>(sc_Address) = Value::sc_Value;
   }
 
   /**
@@ -445,12 +447,12 @@ public:
    */
   template <typename Value>
   inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator^=(const Value) const noexcept {
-    static_assert((is_same_v<const Register, typename Value::Register>),
+    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [toggle] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::TOGGLE),
                   "Peripheral registers [toggle] Invalid operation for the field!");
 
-    *reinterpret_cast<volatile SizeT *>(sc_Address) ^= Value::sc_Value;
+    *reinterpret_cast<volatile Size *>(sc_Address) ^= Value::sc_Value;
   }
 
   /**
@@ -461,12 +463,12 @@ public:
    */
   template <typename Value>
   inline enable_if_t<is_base_of_v<FieldMark, Value>, bool> operator&(const Value) const noexcept {
-    static_assert((is_same_v<const Register, typename Value::Register>),
+    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [read bit] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::READ),
                   "Peripheral registers [read bit] Invalid operation for the field!");
 
-    return static_cast<bool>(*reinterpret_cast<volatile SizeT *>(sc_Address) & Value::sc_Value);
+    return static_cast<bool>(*reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value);
   }
 
   /**
@@ -474,10 +476,10 @@ public:
    *
    * @return SizeT The value is currently stored in the register
    */
-  inline SizeT operator*() const noexcept {
+  inline Size operator*() const noexcept {
     static_assert((sc_Access & AccessMode::READ), "Peripheral registers [read] Invalid operation for the register!");
 
-    return *reinterpret_cast<volatile SizeT *>(sc_Address);
+    return *reinterpret_cast<volatile Size *>(sc_Address);
   }
 
   /**
@@ -492,9 +494,9 @@ public:
     static_assert((sc_Access & AccessMode::ASSIGN), "Peripheral registers [assign] Invalid operation for the field!");
 
     if constexpr (is_pointer_v<Value>) {
-      *reinterpret_cast<volatile SizeT *>(sc_Address) = reinterpret_cast<SizeT>(value);
+      *reinterpret_cast<volatile Size *>(sc_Address) = reinterpret_cast<Size>(value);
     } else {
-      *reinterpret_cast<volatile SizeT *>(sc_Address) = value;
+      *reinterpret_cast<volatile Size *>(sc_Address) = value;
     }
   }
 

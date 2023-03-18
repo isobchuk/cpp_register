@@ -1,23 +1,41 @@
 
-SYSTEM	=llvm-
+SYSTEM	=arm-none-eabi-
 APP		=embedded_compile_time
 
-CC		=clang
-CXX		=clang
+CXX		=$(SYSTEM)g++
+CC		=$(SYSTEM)gcc
+AS		=$(SYSTEM)as
 OBJCOPY	=$(SYSTEM)objcopy
 SIZE	=$(SYSTEM)size
 LD		=$(SYSTEM)ld
 OBJDUMP	=$(SYSTEM)objdump
 
 
-OPTIMIZE	=-Oz
-WARNINGS	=-Werror -Wall -Wextra -Wpedantic -Weverything -pedantic-errors
-WARNINGS_DISABLED =-Wno-c++98-compat -Wno-main
+OPTIMIZE	=-Os
+WARNINGS= 	-Wall \
+			-Werror \
+			-Wextra \
+			-Wctor-dtor-privacy \
+			-Wold-style-cast \
+			-Woverloaded-virtual\
+			-Wsign-promo \
+			-Wduplicated-branches \
+			-Wduplicated-cond \
+			-Wfloat-equal \
+			-Wshadow=compatible-local \
+			-Wcast-qual \
+			-Wconversion \
+			-Wzero-as-null-pointer-constant \
+			-Wextra-semi \
+			-Wsign-conversion \
+			-Wlogical-op \
+			-Wnon-virtual-dtor 
+
 
 DEFINE =-DCORTEX_M_BIT_BAND
-INCLUDE	=-I../
+INCLUDE =-Istm32f407 -I..\..\
 
-COMMONFLAGS	=-g3 --target=thumbv7em-none-eabihf -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16 $(OPTIMIZE) $(WARNINGS) $(WARNINGS_DISABLED) $(DEFINE) $(INCLUDE)
+COMMONFLAGS	=-ggdb -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 $(OPTIMIZE) $(WARNINGS) $(DEFINE) $(INCLUDE)
 CFLAGS=
 CXXFLAGS 	=-std=c++17 -fdata-sections -ffunction-sections -fno-rtti -fno-builtin -fno-exceptions -fno-threadsafe-statics
 LDFLAGS		=-nostdlib
@@ -34,7 +52,7 @@ all: $(APP).elf
 	$(SIZE) $(APP).elf
 
 $(APP).elf: $(OBJ)
-	$(CXX) -Wl,-gc-sections -T$(LDSCRIPT) $(OBJ) $(COMMONFLAGS) $(CXXFLAGS) $(LDFLAGS) -Wl,-Map=$(APP).map -o $(APP).elf
+	$(CXX) -Wl,-gc-sections -T$(LDSCRIPT) $(OBJ) $(COMMONFLAGS) $(CXXFLAGS) $(LDFLAGS) -Xlinker -Map=$(APP).map -o $(APP).elf
 
 .cpp.o:
 	$(CXX) $(COMMONFLAGS) $(CXXFLAGS) -c $^ 

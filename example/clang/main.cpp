@@ -1,9 +1,11 @@
-#include "stm32f407.hpp"
+#include "gpio.hpp"
+#include "rcc.hpp"
+#include "stk.hpp"
 
 using namespace peripheral;
-using namespace stm32f407::registers::rcc;
-using namespace stm32f407::registers::gpio;
-using namespace stm32f407::registers::system_tick;
+using namespace stm32f407::rcc;
+using namespace stm32f407::gpio;
+using namespace stm32f407::stk;
 
 [[noreturn]] int main();
 extern "C" [[noreturn]] void Reset_Handler();
@@ -22,12 +24,12 @@ extern "C" [[noreturn]] void Reset_Handler();
 
   GPIOD->MODER |= GPIO_MODER::MODER[NUM_12 | NUM_13 | NUM_14 | NUM_15](NUM_0);
 
-  SYST->RVR = SYST_RVR::RELOAD(SYST_PERIOD);
-  SYST->CVR = SYST_CVR::CURRENT(SYST_PERIOD);
-  SYST->CSR |= (SYST_CSR::CLKSOURCE | SYST_CSR::ENABLE);
+  STK->LOAD = STK_LOAD::RELOAD(SYST_PERIOD);
+  STK->VAL = STK_VAL::CURRENT(SYST_PERIOD);
+  STK->CTRL |= (STK_CTRL::CLKSOURCE | STK_CTRL::ENABLE);
 
   while (true) {
-    if (SYST->CSR & SYST_CSR::COUNTFLAG) {
+    if (STK->CTRL & STK_CTRL::COUNTFLAG) {
       GPIOD->ODR ^= GPIO_ODR::ODR[NUM_12] | GPIO_ODR::ODR[NUM_13] | GPIO_ODR::ODR[NUM_14] | GPIO_ODR::ODR[NUM_15];
     }
   }
