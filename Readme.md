@@ -1,11 +1,12 @@
 # cpp_register - safe, no-cost and easy-to-use Cpp header to work with HW registers
 
-Metaprogrammed header to work safely with MCU registers without any influence to run-time that as written with templates, constexpr objects, static_assert, overloading and a bit of SFINAE.
+Metaprogrammed header to work safely with MCU registers without any influence to run-time (for Cortex-M3/M4 even more effective than plain C) that as written with templates, constexpr objects, static_assert, overloading and a bit of SFINAE.
 
 Basic compile-time checks:
-    - Does the register contain this field?
-    - Access mode for both registers and fields (more than ten for now)
-    - Size of value to write to the register
+- Does the register contain this field?
+- Access mode for both registers and fields (more than ten for now)
+- Size of value to write to the register
+- et cetera
 
 ## **Advantages**
 
