@@ -4,6 +4,7 @@ import sys
 from array import *
 from collections import namedtuple 
 import os
+import shutil
 
 if len(sys.argv) <= 1:
     print('Provide specific *.svd file for your chip and/or peripheral you want to extract!\r')
@@ -15,6 +16,11 @@ with open(file_name, 'r') as f:
     data = f.read()
 
 Bs_data = BeautifulSoup(data, "xml")
+
+vendor = ''
+if  Bs_data.find('vendor'):
+    vendor = Bs_data.find('vendor').string
+
 b_peripheral = Bs_data.find_all('peripheral')
 
 
@@ -34,6 +40,10 @@ if 2 == len(sys.argv):
     list.clear()
     sys.exit()
 
+
+if os.path.isdir(Bs_data.find('name').string.lower()):
+     shutil.rmtree(Bs_data.find('name').string.lower())
+
 os.mkdir(Bs_data.find('name').string.lower())
 
 paramCounter = 2
@@ -46,7 +56,7 @@ while paramCounter < len(sys.argv):
     f.write("#pragma once\r\n")
     f.write("#include \"register.hpp\"\r\n")
     f.write("namespace " + Bs_data.find('name').string.lower() + "::" + currentGroupName.lower()  + " {\r\n")
-    f.write("using namespace peripheral;\r\n")
+    #f.write("using namespace peripheral;\r\n")
 
     
     if 'NVIC' == currentGroupName:
@@ -109,27 +119,36 @@ while paramCounter < len(sys.argv):
                 regisers = i.find_all('register')
 
                 if regisers is not None:
-                    f.write('template <const RegisterAddress address> struct ' + groups.groupName + '_T {\r')
+                    f.write('template <const isob::peripheral::RegisterAddress address> struct ' + groups.groupName + '_T {\r')
                     for j in regisers:
                         name = j.find('name').string
                         offset = j.find('addressOffset').string
                         size = j.find('size').string if j.find('size') else '0x20'
                         access = j.find('access').string
-                        f.write('\tstatic constexpr Register<address + ' + offset + ', AccessMode::' + cosnt_access_mode[access] + ', ' + const_size[size] + ', struct ' + name + '> ' + name + '{};\r')
+                        f.write('\tstatic constexpr isob::peripheral::Register<address + ' + offset + ', isob::peripheral::AccessMode::' + cosnt_access_mode[access] + ', ' + const_size[size] + ', struct ' + name + '> ' + name + '{};\r')
                         
                         fields = j.find_all('field')
                         
                         list_field.append('struct ' + groups.groupName + '_' + name + ' {\r')
                         skip = 0
-                        for k in fields:
+                        previous_string = ''
+                        
+                        iterations = fields if vendor != 'Nordic Semiconductor' else reversed(fields)
+
+                        for k in iterations:
                             if skip:
                                 skip -= 1
                                 continue
 
                             field_name = k.find('name').string
-                            field_offset = k.find('bitOffset').string
-                            #field_access = k.find('access').string
-                            field_size = k.find('bitWidth').string
+
+                            if vendor != 'Nordic Semiconductor':
+                                field_offset = k.find('bitOffset').string
+                                #field_access = k.find('access').string
+                                field_size = k.find('bitWidth').string
+                            else:
+                                field_offset = k.find('lsb').string
+                                field_size = str(int(k.find('msb').string) - int(k.find('lsb').string) + 1)
 
                             result_string = ''
                             ch = len(field_name) - 1
@@ -140,12 +159,12 @@ while paramCounter < len(sys.argv):
                             if result_string != '':
                                 field_number = int(result_string) + 1
                                 field_offset = str(int(field_offset) + int(field_size) - (int(field_number) * int(field_size)))
-                                list_field.append('\tstatic constexpr Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), AccessMode::'
+                                list_field.append('\tstatic constexpr isob::peripheral::Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), isob::peripheral::AccessMode::'
                                 + cosnt_access_mode[access] + ', ' + field_size +', ' + str(field_number) + '> ' + field_name[0: (ch + 1)] + '{};\r')
                                 skip = field_number - 1
                                 continue
 
-                            list_field.append('\tstatic constexpr Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), AccessMode::'
+                            list_field.append('\tstatic constexpr isob::peripheral::Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), isob::peripheral::AccessMode::'
                             + cosnt_access_mode[access] + ', ' + field_size + '> ' + field_name + '{};\r')
                         list_field.append('};\r\r')
                     f.write('};\r\r')

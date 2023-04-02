@@ -5,7 +5,7 @@
  *        any influence to run-time that as written with templates,
  *        constexpr objects, static_assert, overloading and a bit SFINAE.
  *
- * @version 0.2
+ * @version 0.3
  * @date 2023-03-09
  *
  * @copyright Ivan Sobchuk (c) 2023
@@ -39,10 +39,7 @@
 static_assert((__cplusplus >= 201703L), "Supported only with C++17 and newer!");
 
 // Basic namespace to work with HW
-namespace peripheral {
-
-// Add std namespace for all module
-using namespace std;
+namespace isob::peripheral {
 
 // Register address size is 32 bits all Cortex-M and the most of ARM
 using RegisterAddress = uint32_t;
@@ -53,9 +50,9 @@ using RegisterAddress = uint32_t;
  * @tparam RegisterValue is type to be checked
  */
 template <typename RegisterValue>
-inline constexpr auto is_register_v =
-    ((is_same_v<remove_cv_t<RegisterValue>, uint8_t>) || (is_same_v<remove_cv_t<RegisterValue>, uint16_t>) ||
-     (is_same_v<remove_cv_t<RegisterValue>, uint32_t>));
+inline constexpr auto is_register_v = ((std::is_same_v<std::remove_cv_t<RegisterValue>, uint8_t>) ||
+                                       (std::is_same_v<std::remove_cv_t<RegisterValue>, uint16_t>) ||
+                                       (std::is_same_v<std::remove_cv_t<RegisterValue>, uint32_t>));
 
 /**
  * @brief Struct to make const value (as a type property) from integer
@@ -63,8 +60,8 @@ inline constexpr auto is_register_v =
  * @tparam value desired const value
  * @tparam offset desired const offset (additional)
  */
-template <const uint32_t value, const uint8_t offset = 0> struct ConstVal final {
-  static constexpr uint32_t sc_Value = value << offset;
+template <const auto value, const uint8_t offset = 0> struct ConstVal final {
+  static constexpr auto sc_Value = value << offset;
   static constexpr uint8_t sc_Offset = offset;
 
   /**
@@ -235,7 +232,7 @@ class Field final : FieldMark {
   static constexpr auto sc_Size = fieldSize;     // Size of the field (for multiple fields)
   static constexpr auto sc_Number = fieldNumber; // The same field number in the registers
   static constexpr auto sc_Offset = []() {       // The offset of the field from the register address
-    remove_const_t<decltype(value)> offset = 0;
+    std::remove_const_t<decltype(value)> offset = 0;
     for (unsigned int i = 0; (i < sizeof(value) * 8); i++) {
       if ((static_cast<decltype(value)>(1UL) << i) & value) {
         offset = i;
@@ -247,7 +244,7 @@ class Field final : FieldMark {
 
   // Inner function to create mask by value
   static constexpr auto scl_FieldMask = [](decltype(value) val) {
-    remove_const_t<decltype(val)> mask = 0;
+    std::remove_const_t<decltype(val)> mask = 0;
 
     for (uint8_t i = 0; i < (sizeof(decltype(val)) * 8); i++) {
       if ((val & (static_cast<decltype(val)>(1UL) << i))) {
@@ -270,7 +267,7 @@ class Field final : FieldMark {
 
   // Inner write field
   static constexpr auto scl_WriteField = [](decltype(value) val) {
-    remove_const_t<decltype(val)> mask = 0;
+    std::remove_const_t<decltype(val)> mask = 0;
 
     if (sc_ShortFormFlag & access) {
       for (uint8_t i = 0; i < (sizeof(decltype(val)) * 8); i += sc_Size) {
@@ -302,7 +299,7 @@ public:
       -> Field<Register, (sc_Value | Value::sc_Value), (sc_Access & Value::sc_Access), sc_Size, sc_Number> {
     static_assert(!(sc_Value & Value::sc_Value),
                   "Peripheral field [ operator | ] Some bits of the operands are the same!");
-    static_assert((is_same_v<typename Value::Register, Register>),
+    static_assert((std::is_same_v<typename Value::Register, Register>),
                   "Peripheral field [ operator | ] The fields are from different register!");
     return {};
   }
@@ -343,7 +340,7 @@ public:
 
     // Check size of the value
     constexpr auto cl_MaxValue = []() {
-      remove_const_t<decltype(sc_Value)> maxValue = 0;
+      std::remove_const_t<decltype(sc_Value)> maxValue = 0;
       for (unsigned int i = 0; i < sc_Size; i++) {
         maxValue |= (static_cast<decltype(maxValue)>(1UL) << i);
       }
@@ -363,10 +360,12 @@ public:
  * @tparam access The access mode for the register
  * @tparam SizeT The size type of the register
  */
-template <const RegisterAddress address, const uint8_t access, typename SizeT, typename FieldT>
+template <const RegisterAddress address, const uint8_t access, typename SizeT, typename FieldT,
+          const auto regNumber = 1>
 class Register final {
-  static constexpr auto sc_Address = address; // The register address
-  static constexpr auto sc_Access = access;   // The register access mode
+  static constexpr auto sc_Address = address;          // The register address
+  static constexpr auto sc_Access = access;            // The register access mode
+  static constexpr auto sc_RegisterNumber = regNumber; // The quantity of the consecutive registers
 
   // Inner function to get bit-band address
   template <typename Value> static constexpr auto get_bit_band_address(const Value) {
@@ -385,11 +384,11 @@ public:
    * @brief 'Set' or '|=' for the register
    *
    * @tparam Value The value (Field type) should be set
-   * @return enable_if_t<is_base_of_v<FieldMark, Value>, void>:
+   * @return std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void>:
    */
   template <typename Value>
-  inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator|=(const Value) const noexcept {
-    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
+  inline std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void> operator|=(const Value) const noexcept {
+    static_assert((std::is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [set] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::SET),
                   "Peripheral registers [set] Invalid operation for the field!");
@@ -406,11 +405,11 @@ public:
    * @brief 'Reset' or '&=' for the register
    *
    * @tparam Value The value (Field type) should be reset
-   * @return enable_if_t<is_base_of_v<FieldMark, Value>, void>:
+   * @return std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void>:
    */
   template <typename Value>
-  inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator&=(const Value) const noexcept {
-    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
+  inline std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void> operator&=(const Value) const noexcept {
+    static_assert((std::is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [reset] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::RESET),
                   "Peripheral registers [reset] Invalid operation for the field!");
@@ -427,11 +426,11 @@ public:
    * @brief 'Assign' or '=' for the register
    *
    * @tparam Value The value (Field type) should be assigned
-   * @return enable_if_t<is_base_of_v<FieldMark, Value>, void>:
+   * @return std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void>:
    */
   template <typename Value>
-  inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator=(const Value) const noexcept {
-    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
+  inline std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void> operator=(const Value) const noexcept {
+    static_assert((std::is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [assign] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::ASSIGN),
                   "Peripheral registers [assign] Invalid operation for the field!");
@@ -443,11 +442,11 @@ public:
    * @brief 'Toggle' or '^=' for the register
    *
    * @tparam Value The value (Field type) should be toggled
-   * @return enable_if_t<is_base_of_v<FieldMark, Value>, void>:
+   * @return std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void>:
    */
   template <typename Value>
-  inline enable_if_t<is_base_of_v<FieldMark, Value>, void> operator^=(const Value) const noexcept {
-    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
+  inline std::enable_if_t<std::is_base_of_v<FieldMark, Value>, void> operator^=(const Value) const noexcept {
+    static_assert((std::is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [toggle] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::TOGGLE),
                   "Peripheral registers [toggle] Invalid operation for the field!");
@@ -459,11 +458,11 @@ public:
    * @brief 'Read bit' or '&' for the register
    *
    * @tparam Value The value (Field type) should be read
-   * @return enable_if_t<is_base_of_v<FieldMark, Value>, bool>:
+   * @return std::enable_if_t<std::is_base_of_v<FieldMark, Value>, bool>:
    */
   template <typename Value>
-  inline enable_if_t<is_base_of_v<FieldMark, Value>, bool> operator&(const Value) const noexcept {
-    static_assert((is_same_v<Register::Field, typename Value::Register::Field>),
+  inline std::enable_if_t<std::is_base_of_v<FieldMark, Value>, bool> operator&(const Value) const noexcept {
+    static_assert((std::is_same_v<Register::Field, typename Value::Register::Field>),
                   "Peripheral registers [read bit] The register does not contain the field!");
     static_assert((Value::sc_Access & sc_Access & AccessMode::READ),
                   "Peripheral registers [read bit] Invalid operation for the field!");
@@ -487,13 +486,14 @@ public:
    *
    * @tparam Value register_t or pointer
    * @param value  [in] The value (dynamic) should be assigned
-   * @return enable_if_t<(is_register_v<Value> || is_pointer_v<Value>), void>:
+   * @return std::enable_if_t<(is_register_v<Value> || std::is_pointer_v<Value>), void>:
    */
   template <typename Value>
-  inline enable_if_t<(is_register_v<Value> || is_pointer_v<Value>), void> operator=(const Value value) const noexcept {
+  inline std::enable_if_t<(is_register_v<Value> || std::is_pointer_v<Value>), void>
+  operator=(const Value value) const noexcept {
     static_assert((sc_Access & AccessMode::ASSIGN), "Peripheral registers [assign] Invalid operation for the field!");
 
-    if constexpr (is_pointer_v<Value>) {
+    if constexpr (std::is_pointer_v<Value>) {
       *reinterpret_cast<volatile Size *>(sc_Address) = reinterpret_cast<Size>(value);
     } else {
       *reinterpret_cast<volatile Size *>(sc_Address) = value;
@@ -505,7 +505,21 @@ public:
    *
    * @return constexpr SizeT The const address of the register
    */
-  inline constexpr SizeT operator&() { return sc_Address; }
-};
+  inline constexpr Size operator&() { return sc_Address; }
 
-} // namespace peripheral
+  /**
+   * @brief Operator '[]' to create the calculate the exact address of the register in the registers array
+   *
+   * @tparam Num the number of the register
+   * @return Register<sc_Address + (Num::sc_Value * sizeof(Size)), sc_Access, Size, Field, sc_RegisterNumber> The
+   * new produced type
+   */
+  template <typename Num>
+  inline constexpr auto operator[](const Num) const noexcept
+      -> Register<sc_Address + (Num::sc_Value * sizeof(Size)), sc_Access, Size, Field, sc_RegisterNumber> {
+    static_assert((Num::sc_Value < sc_RegisterNumber),
+                  "Peripheral registers [ operator [] ] The register number was overflowed!");
+    return {};
+  }
+};
+} // namespace isob::peripheral

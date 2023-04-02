@@ -3,6 +3,7 @@
 Metaprogrammed header to work safely with MCU registers without any influence to run-time (for Cortex-M3/M4 even more effective than plain C) that as written with templates, constexpr objects, static_assert, overloading and a bit of SFINAE.
 
 Basic compile-time checks:
+
 - Does the register contain this field?
 - Access mode for both registers and fields (more than ten for now)
 - Size of value to write to the register
@@ -150,6 +151,12 @@ GPIOD->MODER |= (GPIO_MODER::MODER[NUM_12](NUM_0) | GPIO_MODER::MODER[NUM_13](NU
 //Short form
 //Set GPIOD pin 12, 13, 14, 15 as output
 GPIOD->MODER |= GPIO_MODER::MODER[NUM_12 | NUM_13 | NUM_14 | NUM_15](NUM_0);
+```
+
+- The same registers in the array:
+
+```cpp
+GPIOA->AFR[NUM] |= GPIO_AFR::AFR[NUM_2](NUM_1 | NUM_0);
 ```
 
 **Automated bit-band**:

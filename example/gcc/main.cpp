@@ -2,7 +2,7 @@
 #include "rcc.hpp"
 #include "stk.hpp"
 
-using namespace peripheral;
+using namespace isob::peripheral;
 using namespace stm32f407::rcc;
 using namespace stm32f407::gpio;
 using namespace stm32f407::stk;
@@ -30,7 +30,7 @@ int main() {
 
   while (true) {
     if (STK->CTRL & STK_CTRL::COUNTFLAG) {
-      GPIOD->ODR ^= GPIO_ODR::ODR[NUM_12] | GPIO_ODR::ODR[NUM_13] | GPIO_ODR::ODR[NUM_14] | GPIO_ODR::ODR[NUM_15];
+      GPIOD->ODR ^= GPIO_ODR::ODR[NUM_12 | NUM_13 | NUM_14 | NUM_15];
     }
   }
 
