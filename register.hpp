@@ -356,8 +356,8 @@ public:
  * @tparam tpStep The step between the same registers in the array
  *
  */
-template <const RegisterAddress tpAddress, const uint8_t tpAccess, typename SizeT, typename FieldT, const auto tpRegNumber = 1,
-          const auto tpStep = sizeof(SizeT)>
+template <const RegisterAddress tpAddress, const uint8_t tpAccess, typename SizeT, typename FieldT, const uint16_t tpRegNumber = 1,
+          const uint16_t tpStep = sizeof(SizeT)>
 class Register final {
   static constexpr auto sc_Address = tpAddress;          // The register address
   static constexpr auto sc_Access = tpAccess;            // The register access mode
@@ -502,7 +502,7 @@ public:
    */
   template <typename Num>
   inline constexpr auto operator[](const Num) const noexcept
-      -> Register<sc_Address + (Num::sc_Value * sc_Step), sc_Access, Size, Field, sc_RegisterNumber> {
+      -> Register<sc_Address + (Num::sc_Value * sc_Step), sc_Access, Size, Field, sc_RegisterNumber, sc_Step> {
     static_assert((Num::sc_Value < sc_RegisterNumber), "Peripheral registers [ operator [] ] The register number was overflowed!");
     return {};
   }
