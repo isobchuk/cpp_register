@@ -5,7 +5,7 @@
  *        any influence to run-time that as written with templates,
  *        constexpr objects, static_assert, overloading and a bit SFINAE.
  *
- * @version 0.3.1
+ * @version 0.3.2
  * @date 2023-03-09
  *
  * @copyright Ivan Sobchuk (c) 2023
@@ -37,6 +37,10 @@
 #include <type_traits>
 
 static_assert((__cplusplus >= 201703L), "Supported only with C++17 and newer!");
+
+// Cast to the real const value
+#define to_const_val(X)                                                                                                                              \
+  isob::peripheral::ConstVal<X> {}
 
 // Basic namespace to work with HW
 namespace isob::peripheral {

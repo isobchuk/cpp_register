@@ -159,6 +159,12 @@ GPIOD->MODER |= GPIO_MODER::MODER[NUM_12 | NUM_13 | NUM_14 | NUM_15](NUM_0);
 GPIOA->AFR[NUM] |= GPIO_AFR::AFR[NUM_2](NUM_1 | NUM_0);
 ```
 
+- Create ConstVal variable:
+
+```cpp
+static constexpr auto SYST_CLOCK = to_const_val(168000000UL);
+```
+
 **Automated bit-band**:
 
 Useful feature to slightly improve performance for Cortex-M3/M4.

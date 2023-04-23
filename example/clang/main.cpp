@@ -16,7 +16,7 @@ extern "C" [[noreturn]] void Reset_Handler();
 
 [[noreturn]] int main() {
   static constexpr auto SYSTEM_MHZ = 16UL;
-  static constexpr auto SYST_PERIOD = ConstVal<(SYSTEM_MHZ * 1000000UL) - 1>{};
+  static constexpr auto SYST_PERIOD = to_const_val((SYSTEM_MHZ * 1000000UL) - 1);
 
   RCC->AHB1ENR |= RCC_AHB1ENR::GPIODEN;
   // GPIOD->MODER |= (GPIO_MODER::MODER[NUM_12](NUM_0) | GPIO_MODER::MODER[NUM_13](NUM_0) |
