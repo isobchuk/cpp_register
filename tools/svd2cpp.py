@@ -119,13 +119,13 @@ while paramCounter < len(sys.argv):
                 regisers = i.find_all('register')
 
                 if regisers is not None:
-                    f.write('template <const isob::peripheral::RegisterAddress address> struct ' + groups.groupName + '_T {\r')
+                    f.write('template <const cpp_register::RegisterAddress address> struct ' + groups.groupName + '_T {\r')
                     for j in regisers:
                         name = j.find('name').string
                         offset = j.find('addressOffset').string
                         size = j.find('size').string if j.find('size') else '0x20'
                         access = j.find('access').string
-                        f.write('\tstatic constexpr isob::peripheral::Register<address + ' + offset + ', isob::peripheral::AccessMode::' + cosnt_access_mode[access] + ', ' + const_size[size] + ', struct ' + name + '> ' + name + '{};\r')
+                        f.write('\tstatic constexpr cpp_register::Register<address + ' + offset + ', cpp_register::AccessMode::' + cosnt_access_mode[access] + ', ' + const_size[size] + ', struct ' + name + '> ' + name + '{};\r')
                         
                         fields = j.find_all('field')
                         
@@ -159,12 +159,12 @@ while paramCounter < len(sys.argv):
                             if result_string != '':
                                 field_number = int(result_string) + 1
                                 field_offset = str(int(field_offset) + int(field_size) - (int(field_number) * int(field_size)))
-                                list_field.append('\tstatic constexpr isob::peripheral::Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), isob::peripheral::AccessMode::'
+                                list_field.append('\tstatic constexpr cpp_register::Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), cpp_register::AccessMode::'
                                 + cosnt_access_mode[access] + ', ' + field_size +', ' + str(field_number) + '> ' + field_name[0: (ch + 1)] + '{};\r')
                                 skip = field_number - 1
                                 continue
 
-                            list_field.append('\tstatic constexpr isob::peripheral::Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), isob::peripheral::AccessMode::'
+                            list_field.append('\tstatic constexpr cpp_register::Field<decltype(' + groups.baseName + '->' + name + '), (1UL << ' + field_offset + '), cpp_register::AccessMode::'
                             + cosnt_access_mode[access] + ', ' + field_size + '> ' + field_name + '{};\r')
                         list_field.append('};\r\r')
                     f.write('};\r\r')

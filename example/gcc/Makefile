@@ -37,7 +37,7 @@ INCLUDE =-Istm32f407 -I..\..\
 
 COMMONFLAGS	=-ggdb -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 $(OPTIMIZE) $(WARNINGS) $(DEFINE) $(INCLUDE)
 CFLAGS=
-CXXFLAGS 	=-std=c++17 -fdata-sections -ffunction-sections -fno-rtti -fno-builtin -fno-exceptions -fno-threadsafe-statics
+CXXFLAGS 	=-std=c++20 -fdata-sections -ffunction-sections -fno-rtti -fno-builtin -fno-exceptions -fno-threadsafe-statics
 LDFLAGS		=-nostdlib
 
 LDSCRIPT	=linker.ld

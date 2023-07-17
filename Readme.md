@@ -1,6 +1,6 @@
 # cpp_register - safe, no-cost and easy-to-use Cpp header to work with HW registers
 
-Metaprogrammed header to work safely with MCU registers without any influence to run-time (for Cortex-M3/M4 even more effective than plain C) that as written with templates, constexpr objects, static_assert, overloading and a bit of SFINAE.
+Metaprogrammed header to work safely with MCU registers without any influence to run-time (for Cortex-M3/M4 even more effective than plain C) that as written with C++20 using templates, constexpr objects, static_assert, overloading and a bit and concepts.
 
 Basic compile-time checks:
 
@@ -61,14 +61,13 @@ The only one requirement - at least C++17 standard (fully supported by the most 
 
 The library basically contain the only one file - registers.hpp. It is contains three interface classes:
 
-1. **ConstVal** - helper class to transform register value to constexpr value as a type property. This class allows to resolve the problem (constexpr function parameters are not constexpr).
+1. **RegVal** - helper class to transform register value to constexpr value as a type property. This class allows to resolve the problem (constexpr function parameters are not constexpr).
 Supported a bit '|' (or) operation.
+**Note:** register value is a value that is one of: unsigned arithmetic, pointer (to static) or enum (class) with base unsigned arithmetic.
 2. **Field** - type for registers' fields.
 3. **Register** - type for registers.
 
 Access mode for the fields and registers - defined in the **AccessMode** enumeration.
-
-**is_register_v** - is inline template constexpr variable to check the value is one of (const) uint8_t, uint16_t, uint32_t.
 
 Some supported operations (stm32f407 as example):
 
@@ -128,7 +127,7 @@ uint32_t address = &(RCC->AHB1ENR);
 
 ```cpp
 static constexpr auto SYSTEM_MHZ = 16UL;
-static constexpr auto SYST_PERIOD = ConstVal<(SYSTEM_MHZ * 1000000UL) - 1>{};
+static constexpr auto SYST_PERIOD = reg_v<(SYSTEM_MHZ * 1000000UL) - 1>;
 SYST->RVR = SYST_RVR::RELOAD(SYST_PERIOD);
 ```
 
@@ -159,10 +158,20 @@ GPIOD->MODER |= GPIO_MODER::MODER[NUM_12 | NUM_13 | NUM_14 | NUM_15](NUM_0);
 GPIOA->AFR[NUM] |= GPIO_AFR::AFR[NUM_2](NUM_1 | NUM_0);
 ```
 
-- Create ConstVal variable:
+- Create RegVal variable:
 
 ```cpp
-static constexpr auto SYST_CLOCK = to_const_val(168000000UL);
+static constexpr auto SYST_CLOCK = reg_v<168000000UL>;
+```
+
+**Note:** As RegVal supports the enum it is not necessary to cast from enum class to integral.
+Example:
+
+```cpp
+enum class Mode : uint32_t { Input, Output };
+...
+
+static constexpr auto MODE = cpp_register::reg_v<mode>; // no cast needed
 ```
 
 **Automated bit-band**:
@@ -173,14 +182,14 @@ To enable this it is needed to define CORTEX_M_BIT_BAND for the project (-DCORTE
 - The register address in the bit-band region.
 - Only one bit of the register is needed to be set or reset.
 
+**Note:** In the future the possibility to use user-defined bit-band will be added.
+
 ### **How to use?**
 
 The reference to use this library was located to the example folder.
 It is minimal comprehensive project with LED blinking for stm32f407.
-It was written with VSCode + Clang + Make. Also it is builded with
-'-Oz' optimization and strict environment '-Werror -Wall -Wextra -Wpedantic -Weverything -pedantic-errors'.
-
-Apart from that, the same gcc example is also located there.
+It was written with VSCode + gcc + Make. Also it is builded with
+'-Oz' optimization and strict environment '-Werror -Wall -Wextra, et cetera'.
 
 First of all, you have to create the register description header files (as at CMSIS) where you should describe the registers and fields you needed (include register.hpp there). The parameters you should pass to Field and Registers are clear and can be found in the Reference manual for the specific chip.
 
