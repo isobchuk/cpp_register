@@ -5,7 +5,7 @@
  *        any influence to run-time that as written with templates,
  *        constexpr objects, static_assert, overloading and a bit SFINAE.
  *
- * @version 1.0.0
+ * @version 1.0.1
  * @date 2023-03-09
  *
  * @copyright Ivan Sobchuk (c) 2023
@@ -37,7 +37,7 @@
 #include <type_traits>
 
 // C++ concepts should be enabled
-static_assert((__cplusplus >= 201703L) && (__cpp_concepts), "Supported only with C++17 and newer!");
+static_assert((__cplusplus >= 201703L) && (__cpp_concepts), "Supported only with C++20 and newer!");
 
 // Basic namespace to work with HW
 namespace cpp_register {
@@ -77,11 +77,11 @@ template <const auto tpValue, const uint8_t tpOffset = 0>
 requires register_value<decltype(tpValue)> && (static_cast<uint8_t>(tpOffset) < (sizeof(decltype(tpValue)) * 8))
 class RegVal final {
   template <typename Value>
-  inline static constexpr std::enable_if_t<(std::is_unsigned_v<Value> || std::is_pointer_v<Value>), Value> cast_enum(const Value val) {
+  inline static consteval std::enable_if_t<(std::is_unsigned_v<Value> || std::is_pointer_v<Value>), Value> cast_enum(const Value val) {
     return val;
   }
   template <typename Value>
-  inline static constexpr std::enable_if_t<std::is_enum_v<Value>, std::underlying_type_t<Value>> cast_enum(const Value val) {
+  inline static consteval std::enable_if_t<std::is_enum_v<Value>, std::underlying_type_t<Value>> cast_enum(const Value val) {
     return static_cast<std::underlying_type_t<Value>>(val);
   }
 
@@ -101,7 +101,7 @@ public:
    */
   template <typename Value>
   requires reg_val<Value> && (!(sc_Value & Value::sc_Value))
-  constexpr auto operator|(const Value) const -> RegVal<sc_Value | Value::sc_Value> {
+  consteval auto operator|(const Value) const -> RegVal<sc_Value | Value::sc_Value> {
     return {};
   }
 };
@@ -109,7 +109,7 @@ public:
 // Variable alias
 template <const auto tpValue, const uint8_t tpOffset = 0U> inline constexpr auto reg_v = RegVal<tpValue, tpOffset>{};
 
-// Const values for all bits of uint32_t type
+// Const values for all bits of uint32_t type (Usually only for tests)
 inline constexpr RegVal<0UL> ZERO{};
 inline constexpr RegVal<1UL, 0> NUM_0{};
 inline constexpr RegVal<1UL, 1> NUM_1{};
@@ -145,14 +145,7 @@ inline constexpr RegVal<1UL, 30> NUM_30{};
 inline constexpr RegVal<1UL, 31> NUM_31{};
 
 // Additional bit band module for the Cortex-m3/m4
-namespace bit_band {
-
-// Flag to include automatic bit-band operations
-#ifdef CORTEX_M_BIT_BAND
-inline constexpr auto BIT_BAND_MODE = true;
-#else
-inline constexpr auto BIT_BAND_MODE = false;
-#endif
+namespace bit_band::cortex_m {
 
 /**
  * @brief Memory map for memory regions
@@ -180,7 +173,7 @@ using Alias = Map<0x42000000UL, 32UL>;
  */
 template <typename Value>
 requires register_value<Value>
-constexpr RegisterAddress bit_band_address(RegisterAddress pAddress, const Value pValue) {
+consteval RegisterAddress bit_band_address(RegisterAddress pAddress, const Value pValue) {
   RegisterAddress m_Address = pAddress;
   Value m_Value = pValue;
 
@@ -203,7 +196,31 @@ constexpr RegisterAddress bit_band_address(RegisterAddress pAddress, const Value
 
   return m_Address;
 }
-} // namespace bit_band
+} // namespace bit_band::cortex_m
+
+// Flag to include automatic bit-band operations (a bit straightforward but simple)
+#if defined BIT_BAND_CORTEX_M && defined BIT_BAND_CUSTOM
+#error "The only one bit_band algorithm can be used in the same time!"
+#endif
+
+#ifdef BIT_BAND_CORTEX_M
+inline constexpr auto BIT_BAND_MODE = true;
+template <typename Value>
+requires register_value<Value>
+inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
+  return bit_band::cortex_m::bit_band_address(pAddress, pValue);
+}
+#elif BIT_BAND_CUSTOM // For the custom bit_band the recalculation function should be provided
+#include "bit_band_custom.hpp"
+inline constexpr auto BIT_BAND_MODE = true;
+template <typename Value>
+requires register_value<Value>
+inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
+  return bit_band::custom::bit_band_address(pAddress, pValue);
+}
+#else
+inline constexpr auto BIT_BAND_MODE = false;
+#endif
 
 // Access mode for fields
 struct AccessMode {
@@ -339,7 +356,7 @@ public:
    */
   template <typename Value>
   requires field<Value> && std::is_same_v<typename Value::Register, Register>
-  constexpr auto operator|(const Value) const noexcept
+  consteval auto operator|(const Value) const noexcept
       -> Field<Register, (sc_Value | Value::sc_Value), (sc_Access & Value::sc_Access), sc_Size, sc_Number> {
     static_assert(!(sc_Value & Value::sc_Value), "Peripheral field [ operator | ] Some bits of the operands are the same!");
     return {};
@@ -350,7 +367,7 @@ public:
    *
    * @return Field<Register, sc_Value, sc_Access, sc_Size, sc_Number>  the new produced type
    */
-  constexpr auto operator~() const noexcept -> Field<Register, sc_Value, sc_Access, sc_Size, sc_Number> { return {}; }
+  consteval auto operator~() const noexcept -> Field<Register, sc_Value, sc_Access, sc_Size, sc_Number> { return {}; }
 
   /**
    * @brief Operator '[]' to create the same fields in the register
@@ -365,7 +382,7 @@ public:
    */
   template <typename FieldNumber>
   requires reg_val<FieldNumber> && (sc_Number > 1) && (FieldNumber::sc_Offset <= sc_Number)
-  constexpr auto operator[](const FieldNumber) const noexcept
+  consteval auto operator[](const FieldNumber) const noexcept
       -> Field<Register, scl_FormField(sc_Value, FieldNumber::sc_Value, FieldNumber::sc_Offset *sc_Size),
                (scl_isCompound(FieldNumber::sc_Value) | sc_Access), sc_Size, sc_Number> {
     return {};
@@ -381,7 +398,7 @@ public:
    */
   template <typename BitNumber>
   requires reg_val<BitNumber>
-  constexpr auto operator()(const BitNumber) const noexcept -> Field<Register, scl_WriteField(BitNumber::sc_Value), sc_Access, sc_Size, sc_Number> {
+  consteval auto operator()(const BitNumber) const noexcept -> Field<Register, scl_WriteField(BitNumber::sc_Value), sc_Access, sc_Size, sc_Number> {
 
     // Check size of the value
     constexpr auto cl_MaxValue = []() {
@@ -417,9 +434,9 @@ class Register final {
   static constexpr auto sc_Step = tpStep;
 
   // Inner function to get bit-band address
-  template <typename Value> static constexpr auto get_bit_band_address(const Value) {
-    if constexpr (bit_band::BIT_BAND_MODE) {
-      constexpr RegisterAddress bitBandAddress = bit_band::bit_band_address(sc_Address, Value::sc_Value);
+  template <typename Value> static consteval auto get_bit_band_address(const Value) {
+    if constexpr (BIT_BAND_MODE) {
+      constexpr RegisterAddress bitBandAddress = bit_band_addr(sc_Address, Value::sc_Value);
       return bitBandAddress;
     }
     return sc_Address;
@@ -562,7 +579,7 @@ public:
    *
    * @return constexpr SizeT The const address of the register
    */
-  inline constexpr Size operator&() { return sc_Address; }
+  inline consteval Size operator&() { return sc_Address; }
 
   /**
    * @brief Operator '[]' to create the calculate the exact address of the register in the registers array
@@ -576,7 +593,7 @@ public:
    */
   template <typename Num>
   requires reg_val<Num> && (Num::sc_Value < sc_RegisterNumber)
-  inline constexpr auto operator[](const Num) const noexcept
+  inline consteval auto operator[](const Num) const noexcept
       -> Register<sc_Address + (Num::sc_Value * sc_Step), sc_Access, Size, Field, sc_RegisterNumber, sc_Step> {
     return {};
   }

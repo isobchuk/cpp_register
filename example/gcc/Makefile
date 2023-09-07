@@ -32,7 +32,7 @@ WARNINGS= 	-Wall \
 			-Wnon-virtual-dtor 
 
 
-DEFINE =-DCORTEX_M_BIT_BAND
+DEFINE =-DBIT_BAND_CORTEX_M
 INCLUDE =-Istm32f407 -I..\..\
 
 COMMONFLAGS	=-ggdb -mcpu=cortex-m4 -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 $(OPTIMIZE) $(WARNINGS) $(DEFINE) $(INCLUDE)
