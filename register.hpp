@@ -37,7 +37,7 @@
 #include <type_traits>
 
 // C++ concepts should be enabled
-static_assert((__cplusplus >= 201703L) && (__cpp_concepts), "Supported only with C++20 and newer!");
+static_assert((__cplusplus >= 202002L), "Supported only with C++20 and newer!");
 
 // Basic namespace to work with HW
 namespace cpp_register {
@@ -45,6 +45,7 @@ namespace cpp_register {
 // Register address size is 32 bits all Cortex-M and the most of ARM
 using RegisterAddress = uint32_t;
 
+namespace val_valid {
 /**
  * @brief Compile-time check if the type if one of the register value type: unsigned arithmetic, pointer (to static) or enum (class) with base
  * unsigned arithmetic
@@ -56,6 +57,47 @@ concept register_value =
     std::is_unsigned_v<Value> || std::is_pointer_v<Value> || (std::is_enum_v<Value> && std::is_unsigned_v<std::underlying_type_t<Value>>);
 
 /**
+ * @brief Check that offset does not exceed max type size
+ *
+ * @tparam Value  Type of value
+ * @tparam offset Desired offset
+ */
+template <typename Value, const uint8_t offset>
+concept register_offset = ("The offset should be fitted to the type size!", (offset < (sizeof(Value) * 8)));
+
+/**
+ * @brief Check the pointer to be initialized and without offset (also no pointer - true)
+ *
+ * @tparam pPointer Address of the buffer value, should be not nullptr
+ * @tparam pOffset  Offset, should be zero
+ */
+template <const auto pPointer, const uint8_t pOffset> struct is_pointer_valid final {
+  static constexpr auto value = true;
+};
+
+/**
+ * @brief Specialization for pointers to check the conditions listed in the general template
+ *
+ * @tparam *pPointer Address of the buffer value, should be not nullptr
+ * @tparam pOffset   Offset, should be zero
+ */
+template <auto *pPointer, uint8_t pOffset> struct is_pointer_valid<pPointer, pOffset> final {
+  static constexpr auto value = (0 == pOffset) && (nullptr != pPointer) ? true : false;
+};
+
+// Variable alias
+template <const auto pPointer, const uint8_t pOffset = 0> inline constexpr auto is_pointer_valid_v = is_pointer_valid<pPointer, pOffset>::value;
+
+/**
+ * @brief Check that pointer is initialized (in case of no-pointer - returns true)
+ *
+ * @tparam tpValue  Pointer value
+ * @tparam tpOffset Value offset
+ */
+template <const auto tpValue, const uint8_t tpOffset>
+concept register_pointer = ("In case of pointer value - should not be nullptr and without offset!", is_pointer_valid_v<tpValue, tpOffset>);
+
+/**
  * @brief Compile-time check for being RegVal class (with public interface)
  *
  * @tparam T Type to check
@@ -65,29 +107,35 @@ concept reg_val = requires(T) {
   typename T::RegValT;
   T::sc_Offset;
   T::sc_Value;
+  T::sc_IsPointer;
 };
 
 /**
  * @brief Class to make const Register value to write to register
  *
  * @tparam tpValue Desired const value, can be one of unsigned arithmetic, pointer (to static) or enum (class) with base unsigned arithmetic
- * @tparam tpOffset Desired const offset (additional)
+ * @tparam tpOffset Desired const offset (additional, considered only valid only for unsigned and enum values)
  */
 template <const auto tpValue, const uint8_t tpOffset = 0>
-requires register_value<decltype(tpValue)> && (static_cast<uint8_t>(tpOffset) < (sizeof(decltype(tpValue)) * 8))
+requires register_value<decltype(tpValue)> && register_offset<decltype(tpValue), tpOffset> && register_pointer<tpValue, tpOffset>
 class RegVal final {
   template <typename Value>
-  inline static consteval std::enable_if_t<(std::is_unsigned_v<Value> || std::is_pointer_v<Value>), Value> cast_enum(const Value val) {
+  inline static consteval std::enable_if_t<std::is_unsigned_v<Value>, Value> cast_value(const Value val, const uint8_t offset) {
+    return val << offset;
+  }
+  template <typename Value>
+  inline static consteval std::enable_if_t<std::is_pointer_v<Value>, Value> cast_value(const Value val, const uint8_t offset) {
     return val;
   }
   template <typename Value>
-  inline static consteval std::enable_if_t<std::is_enum_v<Value>, std::underlying_type_t<Value>> cast_enum(const Value val) {
-    return static_cast<std::underlying_type_t<Value>>(val);
+  inline static consteval std::enable_if_t<std::is_enum_v<Value>, std::underlying_type_t<Value>> cast_value(const Value val, const uint8_t offset) {
+    return static_cast<std::underlying_type_t<Value>>(val) << offset;
   }
 
 public:
-  static constexpr uint8_t sc_Offset = static_cast<uint8_t>(tpOffset);
-  static constexpr auto sc_Value = cast_enum(tpValue) << sc_Offset;
+  static constexpr uint8_t sc_Offset = tpOffset;
+  static constexpr auto sc_Value = cast_value(tpValue, sc_Offset);
+  static constexpr auto sc_IsPointer = std::is_pointer_v<decltype(tpValue)>;
   struct RegValT;
 
   /**
@@ -95,58 +143,62 @@ public:
    *
    * @constraints:  1) Value should be RegVal type
    *                2) Value bits of the operands should not be the same
+   *                3) Values should not be a pointers
    *
    * @tparam Value Const value that should be 'or'
    * @return RegVal<sc_Value | Value::sc_Value> produced type with new result value (the offset loose the sense)
    */
   template <typename Value>
-  requires reg_val<Value> && (!(sc_Value & Value::sc_Value))
+  requires reg_val<Value> && (!((std::is_pointer_v<decltype(Value::sc_Value)>) || (std::is_pointer_v<decltype(sc_Value)>))) &&
+           (!(sc_Value & Value::sc_Value))
   consteval auto operator|(const Value) const -> RegVal<sc_Value | Value::sc_Value> {
     return {};
   }
 };
+} // namespace val_valid
 
 // Variable alias
-template <const auto tpValue, const uint8_t tpOffset = 0U> inline constexpr auto reg_v = RegVal<tpValue, tpOffset>{};
+template <const auto tpValue, const uint8_t tpOffset = 0U> inline constexpr auto reg_v = val_valid::RegVal<tpValue, tpOffset>{};
 
+namespace constants {
 // Const values for all bits of uint32_t type (Usually only for tests)
-inline constexpr RegVal<0UL> ZERO{};
-inline constexpr RegVal<1UL, 0> NUM_0{};
-inline constexpr RegVal<1UL, 1> NUM_1{};
-inline constexpr RegVal<1UL, 2> NUM_2{};
-inline constexpr RegVal<1UL, 3> NUM_3{};
-inline constexpr RegVal<1UL, 4> NUM_4{};
-inline constexpr RegVal<1UL, 5> NUM_5{};
-inline constexpr RegVal<1UL, 6> NUM_6{};
-inline constexpr RegVal<1UL, 7> NUM_7{};
-inline constexpr RegVal<1UL, 8> NUM_8{};
-inline constexpr RegVal<1UL, 9> NUM_9{};
-inline constexpr RegVal<1UL, 10> NUM_10{};
-inline constexpr RegVal<1UL, 11> NUM_11{};
-inline constexpr RegVal<1UL, 12> NUM_12{};
-inline constexpr RegVal<1UL, 13> NUM_13{};
-inline constexpr RegVal<1UL, 14> NUM_14{};
-inline constexpr RegVal<1UL, 15> NUM_15{};
-inline constexpr RegVal<1UL, 16> NUM_16{};
-inline constexpr RegVal<1UL, 17> NUM_17{};
-inline constexpr RegVal<1UL, 18> NUM_18{};
-inline constexpr RegVal<1UL, 19> NUM_19{};
-inline constexpr RegVal<1UL, 20> NUM_20{};
-inline constexpr RegVal<1UL, 21> NUM_21{};
-inline constexpr RegVal<1UL, 22> NUM_22{};
-inline constexpr RegVal<1UL, 23> NUM_23{};
-inline constexpr RegVal<1UL, 24> NUM_24{};
-inline constexpr RegVal<1UL, 25> NUM_25{};
-inline constexpr RegVal<1UL, 26> NUM_26{};
-inline constexpr RegVal<1UL, 27> NUM_27{};
-inline constexpr RegVal<1UL, 28> NUM_28{};
-inline constexpr RegVal<1UL, 29> NUM_29{};
-inline constexpr RegVal<1UL, 30> NUM_30{};
-inline constexpr RegVal<1UL, 31> NUM_31{};
+inline constexpr val_valid::RegVal<0UL> ZERO{};
+inline constexpr val_valid::RegVal<1UL, 0> NUM_0{};
+inline constexpr val_valid::RegVal<1UL, 1> NUM_1{};
+inline constexpr val_valid::RegVal<1UL, 2> NUM_2{};
+inline constexpr val_valid::RegVal<1UL, 3> NUM_3{};
+inline constexpr val_valid::RegVal<1UL, 4> NUM_4{};
+inline constexpr val_valid::RegVal<1UL, 5> NUM_5{};
+inline constexpr val_valid::RegVal<1UL, 6> NUM_6{};
+inline constexpr val_valid::RegVal<1UL, 7> NUM_7{};
+inline constexpr val_valid::RegVal<1UL, 8> NUM_8{};
+inline constexpr val_valid::RegVal<1UL, 9> NUM_9{};
+inline constexpr val_valid::RegVal<1UL, 10> NUM_10{};
+inline constexpr val_valid::RegVal<1UL, 11> NUM_11{};
+inline constexpr val_valid::RegVal<1UL, 12> NUM_12{};
+inline constexpr val_valid::RegVal<1UL, 13> NUM_13{};
+inline constexpr val_valid::RegVal<1UL, 14> NUM_14{};
+inline constexpr val_valid::RegVal<1UL, 15> NUM_15{};
+inline constexpr val_valid::RegVal<1UL, 16> NUM_16{};
+inline constexpr val_valid::RegVal<1UL, 17> NUM_17{};
+inline constexpr val_valid::RegVal<1UL, 18> NUM_18{};
+inline constexpr val_valid::RegVal<1UL, 19> NUM_19{};
+inline constexpr val_valid::RegVal<1UL, 20> NUM_20{};
+inline constexpr val_valid::RegVal<1UL, 21> NUM_21{};
+inline constexpr val_valid::RegVal<1UL, 22> NUM_22{};
+inline constexpr val_valid::RegVal<1UL, 23> NUM_23{};
+inline constexpr val_valid::RegVal<1UL, 24> NUM_24{};
+inline constexpr val_valid::RegVal<1UL, 25> NUM_25{};
+inline constexpr val_valid::RegVal<1UL, 26> NUM_26{};
+inline constexpr val_valid::RegVal<1UL, 27> NUM_27{};
+inline constexpr val_valid::RegVal<1UL, 28> NUM_28{};
+inline constexpr val_valid::RegVal<1UL, 29> NUM_29{};
+inline constexpr val_valid::RegVal<1UL, 30> NUM_30{};
+inline constexpr val_valid::RegVal<1UL, 31> NUM_31{};
+} // namespace constants
 
 // Additional bit band module for the Cortex-m3/m4
 namespace bit_band::cortex_m {
-
 /**
  * @brief Memory map for memory regions
  *
@@ -172,7 +224,7 @@ using Alias = Map<0x42000000UL, 32UL>;
  * address)
  */
 template <typename Value>
-requires register_value<Value>
+requires val_valid::register_value<Value>
 consteval RegisterAddress bit_band_address(RegisterAddress pAddress, const Value pValue) {
   RegisterAddress m_Address = pAddress;
   Value m_Value = pValue;
@@ -206,7 +258,7 @@ consteval RegisterAddress bit_band_address(RegisterAddress pAddress, const Value
 #ifdef BIT_BAND_CORTEX_M
 inline constexpr auto BIT_BAND_MODE = true;
 template <typename Value>
-requires register_value<Value>
+requires val_valid::register_value<Value>
 inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
   return bit_band::cortex_m::bit_band_address(pAddress, pValue);
 }
@@ -214,7 +266,7 @@ inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const V
 #include "bit_band_custom.hpp"
 inline constexpr auto BIT_BAND_MODE = true;
 template <typename Value>
-requires register_value<Value>
+requires val_valid::register_value<Value>
 inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
   return bit_band::custom::bit_band_address(pAddress, pValue);
 }
@@ -224,6 +276,7 @@ inline constexpr auto BIT_BAND_MODE = false;
 
 // Access mode for fields
 struct AccessMode {
+
   // All operation that can be done with fields registers
   enum AvailableOperation : uint8_t {
     NONE = 0,
@@ -277,65 +330,95 @@ concept field = requires(T) {
  * @tparam tpFieldSize The size of the field
  * @tparam tpFieldNumber The number of the same fields in the register
  */
-template <typename T, const typename T::Size tpValue, const uint8_t tpAccess, const uint8_t tpFieldSize, const uint8_t tpFieldNumber = 1>
-requires register_value<decltype(tpValue)>
+template <typename T, const typename T::Size tpValue, const uint8_t tpAccess, const uint8_t tpFieldSize, const uint8_t tpFieldNumber = 1,
+          typename = void>
+requires val_valid::register_value<decltype(tpValue)>
 class Field final {
   static_assert(((0 != (tpFieldSize * tpFieldNumber)) && ((tpFieldSize * tpFieldNumber) <= (sizeof(decltype(tpValue)) * 8))),
                 "Peripheral field  The field size and number should be more than 0 and less than sizeof(Register::Size)!");
 
   // Flag of the short form for multi-filed operations
-  static constexpr uint8_t sc_ShortFormFlag = 0x80;
+  static constexpr uint8_t sc_ShortFormFlag = 0x80U;
 
   static constexpr auto sc_Size = tpFieldSize;     // Size of the field (for multiple fields)
   static constexpr auto sc_Number = tpFieldNumber; // The same field number in the registers
   static constexpr auto sc_Offset = []() {         // The offset of the field from the register address
-    std::remove_const_t<decltype(tpValue)> offset = 0;
-    for (unsigned int i = 0; (i < sizeof(tpValue) * 8); i++) {
-      if ((static_cast<decltype(tpValue)>(1UL) << i) & tpValue) {
-        offset = i;
-        break;
+    if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
+      std::remove_const_t<decltype(tpValue)> offset = 0;
+      for (unsigned int i = 0; (i < sizeof(tpValue) * 8); i++) {
+        if ((static_cast<decltype(tpValue)>(1UL) << i) & tpValue) {
+          offset = i;
+          break;
+        }
       }
+      return offset;
+    } else {
+      return 0U;
     }
-    return offset;
+
   }();
 
   // Inner function to create mask by value
   static constexpr auto scl_FieldMask = [](decltype(tpValue) pValue) {
-    std::remove_const_t<decltype(pValue)> mask = 0;
-
-    for (uint8_t i = 0; i < (sizeof(decltype(pValue)) * 8); i++) {
-      if ((pValue & (static_cast<decltype(pValue)>(1UL) << i))) {
-        for (uint8_t j = 0; j < sc_Size; j++) {
-          mask |= (static_cast<decltype(pValue)>(1UL) << (j + (i * sc_Size)));
+    if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
+      std::remove_const_t<decltype(pValue)> mask = 0;
+      for (uint8_t i = 0; i < (sizeof(decltype(pValue)) * 8); i++) {
+        if ((pValue & (static_cast<decltype(pValue)>(1UL) << i))) {
+          for (uint8_t j = 0; j < sc_Size; j++) {
+            mask |= (static_cast<decltype(pValue)>(1UL) << (j + (i * sc_Size)));
+          }
         }
       }
+      return mask;
+    } else {
+      return 0U;
     }
-    return mask;
   };
 
   // Inner checking for the compound short form
-  static constexpr auto scl_isCompound = [](decltype(tpValue) pValue) { return (pValue & (pValue - 1)) ? sc_ShortFormFlag : 0; };
+  static constexpr auto scl_isCompound = [](decltype(tpValue) pValue) {
+    if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
+      return (pValue & (pValue - 1)) ? sc_ShortFormFlag : 0;
+    } else {
+      return 0;
+    }
+  };
 
   // Inner form field
   static constexpr auto scl_FormField = [](decltype(tpValue) pValueSource, decltype(tpValue) pValueTarget, decltype(sc_Offset) pOffset) {
-    return (scl_isCompound(pValueTarget)) ? scl_FieldMask(pValueTarget) : pValueSource << pOffset;
+    if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
+      return (scl_isCompound(pValueTarget)) ? scl_FieldMask(pValueTarget) << sc_Offset : pValueSource << pOffset;
+    } else {
+      return 0;
+    }
   };
 
   // Inner write field
   static constexpr auto scl_WriteField = [](decltype(tpValue) pValue) {
-    std::remove_const_t<decltype(pValue)> mask = 0;
-
-    if (sc_ShortFormFlag & tpAccess) {
-      for (uint8_t i = 0; i < (sizeof(decltype(pValue)) * 8); i += sc_Size) {
-        if ((tpValue & (static_cast<decltype(pValue)>(1UL) << i))) {
-          mask |= (tpValue & (pValue << i));
+    if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
+      std::remove_const_t<decltype(pValue)> mask = 0;
+      if (sc_ShortFormFlag & tpAccess) {
+        for (uint8_t i = 0; i < (sizeof(decltype(pValue)) * 8); i += sc_Size) {
+          if ((tpValue & (static_cast<decltype(pValue)>(1UL) << i))) {
+            mask |= (tpValue & (pValue << i));
+          }
         }
+      } else {
+        mask = pValue << sc_Offset;
       }
+      return mask;
     } else {
-      mask = pValue << sc_Offset;
+      return 0;
     }
+  };
 
-    return mask;
+  // Cast value to void * if pointer
+  template <const auto pVal> struct pointer_cast final {
+    static constexpr auto value = pVal;
+  };
+
+  template <auto *pVal> struct pointer_cast<pVal> final {
+    static constexpr auto value = static_cast<void *>(pVal);
   };
 
 public:
@@ -381,7 +464,7 @@ public:
    * (scl_isCompound(FieldNumber::sc_Value) | sc_Access), sc_Size, sc_Number> The new produced type
    */
   template <typename FieldNumber>
-  requires reg_val<FieldNumber> && (sc_Number > 1) && (FieldNumber::sc_Offset <= sc_Number)
+  requires val_valid::reg_val<FieldNumber> && (sc_Number > 1) && (FieldNumber::sc_Offset <= sc_Number)
   consteval auto operator[](const FieldNumber) const noexcept
       -> Field<Register, scl_FormField(sc_Value, FieldNumber::sc_Value, FieldNumber::sc_Offset *sc_Size),
                (scl_isCompound(FieldNumber::sc_Value) | sc_Access), sc_Size, sc_Number> {
@@ -397,7 +480,7 @@ public:
    * @return Field<Register, scl_WriteField(BitNumber::sc_Value), sc_Access, sc_Size, sc_Number> The new produced typ
    */
   template <typename BitNumber>
-  requires reg_val<BitNumber>
+  requires val_valid::reg_val<BitNumber> && (!BitNumber::sc_IsPointer)
   consteval auto operator()(const BitNumber) const noexcept -> Field<Register, scl_WriteField(BitNumber::sc_Value), sc_Access, sc_Size, sc_Number> {
 
     // Check size of the value
@@ -409,7 +492,15 @@ public:
       return maxValue;
     }();
 
-    static_assert((BitNumber::sc_Value <= cl_MaxValue), "Peripheral field [ operator [] ] The bit number was overflowed!");
+    static_assert((BitNumber::sc_Value <= cl_MaxValue), "Peripheral field [ operator () ] The bit number was overflowed!");
+    return {};
+  }
+
+  template <typename BitNumber>
+  requires val_valid::reg_val<BitNumber> && (BitNumber::sc_IsPointer)
+  consteval auto operator()(const BitNumber) const noexcept
+      -> Field<Register, pointer_cast<BitNumber::sc_Value>::value, sc_Access, sc_Size, sc_Number> {
+    static_assert((8 * sizeof(void *) == sc_Size), "Peripheral field [ operator () ] The register should be fit enough to store address!");
     return {};
   }
 };
@@ -565,7 +656,7 @@ public:
    *
    */
   template <typename Value>
-  requires register_value<Value> && (static_cast<bool>(sc_Access & AccessMode::ASSIGN))
+  requires val_valid::register_value<Value> && (static_cast<bool>(sc_Access & AccessMode::ASSIGN))
   inline void operator=(const Value value) const noexcept {
     if constexpr (std::is_pointer_v<Value>) {
       *reinterpret_cast<volatile Size *>(sc_Address) = reinterpret_cast<Size>(value);
@@ -592,7 +683,7 @@ public:
    * new produced type
    */
   template <typename Num>
-  requires reg_val<Num> && (Num::sc_Value < sc_RegisterNumber)
+  requires val_valid::reg_val<Num> && (Num::sc_Value < sc_RegisterNumber)
   inline consteval auto operator[](const Num) const noexcept
       -> Register<sc_Address + (Num::sc_Value * sc_Step), sc_Access, Size, Field, sc_RegisterNumber, sc_Step> {
     return {};

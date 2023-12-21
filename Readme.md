@@ -69,7 +69,7 @@ Supported a bit '|' (or) operation.
 
 Access mode for the fields and registers - defined in the **AccessMode** enumeration.
 
-Some supported operations (stm32f407 as example):
+Some supported operations (stm32f407 as example, also can be found in unittest):
 
 - Set bit(s) '|=' in the register:
 
@@ -172,6 +172,13 @@ enum class Mode : uint32_t { Input, Output };
 ...
 
 static constexpr auto MODE = cpp_register::reg_v<mode>; // no cast needed
+```
+
+- Static pointer as a field value (with compile time check for nullptr)
+
+```cpp
+static uint8_t buffer[8];
+REG_TEST->TEST1 = TEST1_POINTER::VAL1(reg_v<buffer>);
 ```
 
 **Automated bit-band**:

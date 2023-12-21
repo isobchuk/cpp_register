@@ -3,6 +3,7 @@
 #include "stk.hpp"
 
 using namespace cpp_register;
+using namespace cpp_register::constants;
 using namespace stm32f407::rcc;
 using namespace stm32f407::gpio;
 using namespace stm32f407::stk;
