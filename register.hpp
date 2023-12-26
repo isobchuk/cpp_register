@@ -329,9 +329,10 @@ concept field = requires(T) {
  * @tparam tpAccess The access mode of the field
  * @tparam tpFieldSize The size of the field
  * @tparam tpFieldNumber The number of the same fields in the register
+ * @tparam tpStep The span between the same fields in the register
  */
 template <typename T, const typename T::Size tpValue, const uint8_t tpAccess, const uint8_t tpFieldSize, const uint8_t tpFieldNumber = 1,
-          typename = void>
+          const uint8_t tpStep = 0>
 requires val_valid::register_value<decltype(tpValue)>
 class Field final {
   static_assert(((0 != (tpFieldSize * tpFieldNumber)) && ((tpFieldSize * tpFieldNumber) <= (sizeof(decltype(tpValue)) * 8))),
@@ -342,6 +343,7 @@ class Field final {
 
   static constexpr auto sc_Size = tpFieldSize;     // Size of the field (for multiple fields)
   static constexpr auto sc_Number = tpFieldNumber; // The same field number in the registers
+  static constexpr auto sc_Step = tpStep;          // The step between the same fields
   static constexpr auto sc_Offset = []() {         // The offset of the field from the register address
     if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
       std::remove_const_t<decltype(tpValue)> offset = 0;
@@ -365,7 +367,7 @@ class Field final {
       for (uint8_t i = 0; i < (sizeof(decltype(pValue)) * 8); i++) {
         if ((pValue & (static_cast<decltype(pValue)>(1UL) << i))) {
           for (uint8_t j = 0; j < sc_Size; j++) {
-            mask |= (static_cast<decltype(pValue)>(1UL) << (j + (i * sc_Size)));
+            mask |= (static_cast<decltype(pValue)>(1UL) << (j + (i * (sc_Size + sc_Step))));
           }
         }
       }
@@ -387,7 +389,7 @@ class Field final {
   // Inner form field
   static constexpr auto scl_FormField = [](decltype(tpValue) pValueSource, decltype(tpValue) pValueTarget, decltype(sc_Offset) pOffset) {
     if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
-      return (scl_isCompound(pValueTarget)) ? scl_FieldMask(pValueTarget) << sc_Offset : pValueSource << pOffset;
+      return (scl_isCompound(pValueTarget)) ? scl_FieldMask(pValueTarget) << sc_Offset : pValueSource << pOffset * (sc_Size + sc_Step);
     } else {
       return 0;
     }
@@ -466,8 +468,8 @@ public:
   template <typename FieldNumber>
   requires val_valid::reg_val<FieldNumber> && (sc_Number > 1) && (FieldNumber::sc_Offset <= sc_Number)
   consteval auto operator[](const FieldNumber) const noexcept
-      -> Field<Register, scl_FormField(sc_Value, FieldNumber::sc_Value, FieldNumber::sc_Offset *sc_Size),
-               (scl_isCompound(FieldNumber::sc_Value) | sc_Access), sc_Size, sc_Number> {
+      -> Field<Register, scl_FormField(sc_Value, FieldNumber::sc_Value, FieldNumber::sc_Offset), (scl_isCompound(FieldNumber::sc_Value) | sc_Access),
+               sc_Size, sc_Number> {
     return {};
   }
 
