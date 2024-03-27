@@ -178,4 +178,16 @@ TEST_CASE("Check compile-time single-bit register value") {
   CHECK_EQ(CHECK_VALUE2.sc_Value, 0x1101'0020UL);
 }
 
+TEST_CASE("Check the comparison operators to check that some bits are set") {
+  const bool equalTrue = (TEST4_REGISTER::VAL1[NUM_2](reg_v<7UL>) == (0x7UL << 16));
+  const bool equalFalse = (TEST4_REGISTER::VAL1[NUM_2](reg_v<7UL>) == (0x7UL << 8));
+  const bool unequalTrue = (TEST4_REGISTER::VAL1[NUM_0](reg_v<7UL>) != (0x7UL << 16));
+  const bool unequalFalse = (TEST4_REGISTER::VAL1[NUM_0](reg_v<7UL>) != (0x7UL << 8));
+
+  CHECK(equalTrue);
+  CHECK_FALSE(equalFalse);
+  CHECK(unequalTrue);
+  CHECK_FALSE(unequalFalse);
+}
+
 TEST_SUITE_END();

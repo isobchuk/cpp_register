@@ -100,7 +100,21 @@ RCC->AHB1ENR ^= RCC_AHB1ENR::GPIODEN;
 - Read bit(s) binary '&' of the register:
 
 ```cpp
+// For one bit returns boolean
 if(RCC->AHB1ENR & RCC_AHB1ENR::GPIODEN)
+
+// Several bits value can be requested and reading operation returns Register Size type
+if(RCC->CFGR & RCC_CFGR::SWS(reg_v<MASK>))
+
+// Also operators of comparison ('==' and '!=') are overloaded to check several bits value
+enum class : unsigned {
+    HSI = 0b01,
+    HSE = 0b10,
+    MASK = 0b11
+}
+
+// Check if HSE is written in the register (read by mask -> compare with HSE value)
+while(RCC_CFGR::SWS(reg_v<HSE>) != (RCC->CFGR & RCC_CFGR::SWS(reg_v<MASK>)))
 ```
 
 - Read register value '*':

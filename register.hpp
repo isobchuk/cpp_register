@@ -498,6 +498,9 @@ public:
     return {};
   }
 
+  /**
+   * @brief Overload operator for the compile-time pointer (look at the main overload)
+   */
   template <typename BitNumber>
   requires val_valid::reg_val<BitNumber> && (BitNumber::sc_IsPointer)
   consteval auto operator()(const BitNumber) const noexcept
@@ -505,6 +508,19 @@ public:
     static_assert((8 * sizeof(void *) == sc_Size), "Peripheral field [ operator () ] The register should be fit enough to store address!");
     return {};
   }
+
+  /**
+   * @brief Comparison operator overload to check if some bits are set
+   *        Can be performed in compile-time
+   *
+   * @constraints:  The field should be compared as the lhs, the value as rhs (on purpose)
+   *
+   * @param value Value that was read from the register
+   * @return true  The condition is true
+   * @return false The condition is false
+   */
+  [[nodiscard]] inline constexpr bool operator==(const Register::Size value) const noexcept { return (sc_Value == value); }
+  [[nodiscard]] inline constexpr bool operator!=(const Register::Size value) const noexcept { return (sc_Value != value); }
 };
 
 /**
@@ -630,8 +646,13 @@ public:
   template <typename Value>
   requires field<Value> && (std::is_same_v<Register::Field, typename Value::Register::Field>) &&
            (static_cast<bool>(Value::sc_Access & sc_Access & AccessMode::READ))
-  inline bool operator&(const Value) const noexcept {
-    return static_cast<bool>(*reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value);
+  inline auto operator&(const Value) const noexcept {
+    // Check for only one bit is set or Value is not zero (return bool in this case)
+    if constexpr (Value::sc_Value & (Value::sc_Value - 1)) {
+      return *reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value;
+    } else {
+      return static_cast<bool>(*reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value);
+    }
   }
 
   /**
