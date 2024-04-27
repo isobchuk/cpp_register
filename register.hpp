@@ -347,7 +347,7 @@ class Field final {
   static constexpr auto sc_Offset = []() {         // The offset of the field from the register address
     if constexpr (!std::is_pointer_v<decltype(tpValue)>) {
       std::remove_const_t<decltype(tpValue)> offset = 0;
-      for (unsigned int i = 0; (i < sizeof(tpValue) * 8); i++) {
+      for (decltype(offset) i = 0; (i < sizeof(tpValue) * 8); i++) {
         if ((static_cast<decltype(tpValue)>(1UL) << i) & tpValue) {
           offset = i;
           break;
@@ -595,7 +595,7 @@ public:
     if constexpr (sc_Address != bitBandAddress) {
       *reinterpret_cast<volatile Size *>(bitBandAddress) = 0;
     } else {
-      *reinterpret_cast<volatile Size *>(sc_Address) = *reinterpret_cast<volatile Size *>(sc_Address) & ~Value::sc_Value;
+      *reinterpret_cast<volatile Size *>(sc_Address) = *reinterpret_cast<volatile Size *>(sc_Address) & static_cast<Size>(~Value::sc_Value);
     }
   }
 
