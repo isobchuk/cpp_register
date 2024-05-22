@@ -225,17 +225,17 @@ using Alias = Map<0x42000000UL, 32UL>;
  */
 template <typename Value>
 requires val_valid::register_value<Value>
-consteval RegisterAddress bit_band_address(RegisterAddress pAddress, const Value pValue) {
+[[nodiscard]] consteval RegisterAddress bit_band_address(RegisterAddress pAddress, const Value pValue) {
   RegisterAddress m_Address = pAddress;
   Value m_Value = pValue;
 
   // Check for only one bit is set or Value is not zero
-  if ((m_Value & (m_Value - 1)) || (0 == m_Value)) {
+  if ((m_Value & (m_Value - 1)) || (0 == m_Value)) [[unlikely]] {
     return m_Address;
   }
 
   // Check the register is fitted to the bit-band area
-  if ((m_Address >= Region::sc_Origin) && (m_Address < (Region::sc_Origin + Region::sc_Length))) {
+  if ((m_Address >= Region::sc_Origin) && (m_Address < (Region::sc_Origin + Region::sc_Length))) [[likely]] {
     // Recalculate value according to the bit-band formula
     uint8_t bitNum = 0;
     for (; !(m_Value & (static_cast<decltype(m_Value)>(1) << bitNum)); bitNum++) {
@@ -259,7 +259,7 @@ consteval RegisterAddress bit_band_address(RegisterAddress pAddress, const Value
 inline constexpr auto BIT_BAND_MODE = true;
 template <typename Value>
 requires val_valid::register_value<Value>
-inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
+[[nodiscard]] inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
   return bit_band::cortex_m::bit_band_address(pAddress, pValue);
 }
 #elif BIT_BAND_CUSTOM // For the custom bit_band the recalculation function should be provided
@@ -267,7 +267,7 @@ inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const V
 inline constexpr auto BIT_BAND_MODE = true;
 template <typename Value>
 requires val_valid::register_value<Value>
-inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
+[[nodiscard]] inline consteval RegisterAddress bit_band_addr(RegisterAddress pAddress, const Value pValue) {
   return bit_band::custom::bit_band_address(pAddress, pValue);
 }
 #else
@@ -441,7 +441,7 @@ public:
    */
   template <typename Value>
   requires field<Value> && std::is_same_v<typename Value::Register, Register>
-  consteval auto operator|(const Value) const noexcept
+  [[nodiscard]] consteval auto operator|(const Value) const noexcept
       -> Field<Register, (sc_Value | Value::sc_Value), (sc_Access & Value::sc_Access), sc_Size, sc_Number> {
     static_assert(!(sc_Value & Value::sc_Value), "Peripheral field [ operator | ] Some bits of the operands are the same!");
     return {};
@@ -452,7 +452,7 @@ public:
    *
    * @return Field<Register, sc_Value, sc_Access, sc_Size, sc_Number>  the new produced type
    */
-  consteval auto operator~() const noexcept -> Field<Register, sc_Value, sc_Access, sc_Size, sc_Number> { return {}; }
+  [[nodiscard]] consteval auto operator~() const noexcept -> Field<Register, sc_Value, sc_Access, sc_Size, sc_Number> { return {}; }
 
   /**
    * @brief Operator '[]' to create the same fields in the register
@@ -467,7 +467,7 @@ public:
    */
   template <typename FieldNumber>
   requires val_valid::reg_val<FieldNumber> && (sc_Number > 1) && (FieldNumber::sc_Offset <= sc_Number)
-  consteval auto operator[](const FieldNumber) const noexcept
+  [[nodiscard]] consteval auto operator[](const FieldNumber) const noexcept
       -> Field<Register, scl_FormField(sc_Value, FieldNumber::sc_Value, FieldNumber::sc_Offset), (scl_isCompound(FieldNumber::sc_Value) | sc_Access),
                sc_Size, sc_Number> {
     return {};
@@ -483,7 +483,8 @@ public:
    */
   template <typename BitNumber>
   requires val_valid::reg_val<BitNumber> && (!BitNumber::sc_IsPointer)
-  consteval auto operator()(const BitNumber) const noexcept -> Field<Register, scl_WriteField(BitNumber::sc_Value), sc_Access, sc_Size, sc_Number> {
+  [[nodiscard]] consteval auto operator()(const BitNumber) const noexcept
+      -> Field<Register, scl_WriteField(BitNumber::sc_Value), sc_Access, sc_Size, sc_Number> {
 
     // Check size of the value
     constexpr auto cl_MaxValue = []() {
@@ -503,7 +504,7 @@ public:
    */
   template <typename BitNumber>
   requires val_valid::reg_val<BitNumber> && (BitNumber::sc_IsPointer)
-  consteval auto operator()(const BitNumber) const noexcept
+  [[nodiscard]] consteval auto operator()(const BitNumber) const noexcept
       -> Field<Register, pointer_cast<BitNumber::sc_Value>::value, sc_Access, sc_Size, sc_Number> {
     static_assert((8 * sizeof(void *) == sc_Size), "Peripheral field [ operator () ] The register should be fit enough to store address!");
     return {};
@@ -646,7 +647,7 @@ public:
   template <typename Value>
   requires field<Value> && (std::is_same_v<Register::Field, typename Value::Register::Field>) &&
            (static_cast<bool>(Value::sc_Access & sc_Access & AccessMode::READ))
-  inline auto operator&(const Value) const noexcept {
+  [[nodiscard]] inline auto operator&(const Value) const noexcept {
     // Check for only one bit is set or Value is not zero (return bool in this case)
     if constexpr (Value::sc_Value & (Value::sc_Value - 1)) {
       return *reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value;
@@ -662,7 +663,7 @@ public:
    *
    * @return SizeT The value is currently stored in the register
    */
-  inline Size operator*() const noexcept
+  [[nodiscard]] inline Size operator*() const noexcept
   requires(static_cast<bool>(sc_Access &AccessMode::READ))
   {
     return *reinterpret_cast<volatile Size *>(sc_Address);
@@ -693,7 +694,7 @@ public:
    *
    * @return constexpr SizeT The const address of the register
    */
-  inline consteval Size operator&() { return sc_Address; }
+  [[nodiscard]] inline consteval Size operator&() { return sc_Address; }
 
   /**
    * @brief Operator '[]' to create the calculate the exact address of the register in the registers array
@@ -707,7 +708,7 @@ public:
    */
   template <typename Num>
   requires val_valid::reg_val<Num> && (Num::sc_Value < sc_RegisterNumber)
-  inline consteval auto operator[](const Num) const noexcept
+  [[nodiscard]] inline consteval auto operator[](const Num) const noexcept
       -> Register<sc_Address + (Num::sc_Value * sc_Step), sc_Access, Size, Field, sc_RegisterNumber, sc_Step> {
     return {};
   }
