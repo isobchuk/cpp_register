@@ -33,8 +33,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
+
 
 // C++ concepts should be enabled
 static_assert((__cplusplus >= 202002L), "Supported only with C++20 and newer!");
@@ -43,7 +45,7 @@ static_assert((__cplusplus >= 202002L), "Supported only with C++20 and newer!");
 namespace cpp_register {
 
 // Register address size is 32 bits all Cortex-M and the most of ARM
-using RegisterAddress = uint32_t;
+using RegisterAddress = size_t;
 
 namespace val_valid {
 /**
@@ -650,7 +652,7 @@ public:
   [[nodiscard]] inline auto operator&(const Value) const noexcept {
     // Check for only one bit is set or Value is not zero (return bool in this case)
     if constexpr (Value::sc_Value & (Value::sc_Value - 1)) {
-      return *reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value;
+      return static_cast<Size>(*reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value);
     } else {
       return static_cast<bool>(*reinterpret_cast<volatile Size *>(sc_Address) & Value::sc_Value);
     }
