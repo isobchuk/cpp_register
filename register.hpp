@@ -37,7 +37,6 @@
 #include <cstdint>
 #include <type_traits>
 
-
 // C++ concepts should be enabled
 static_assert((__cplusplus >= 202002L), "Supported only with C++20 and newer!");
 
@@ -524,6 +523,14 @@ public:
    */
   [[nodiscard]] inline constexpr bool operator==(const Register::Size value) const noexcept { return (sc_Value == value); }
   [[nodiscard]] inline constexpr bool operator!=(const Register::Size value) const noexcept { return (sc_Value != value); }
+
+  /**
+   * @brief Returns true if some value is stored
+   *
+   * @return true  The value is stored
+   * @return false The null is stored
+   */
+  [[nodiscard]] consteval operator bool() const noexcept { return sc_Value != 0; }
 };
 
 /**

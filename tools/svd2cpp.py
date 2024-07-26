@@ -51,11 +51,11 @@ while paramCounter < len(sys.argv):
     currentGroupName = sys.argv[paramCounter]
 
     paramCounter+=1
-    f = open(Bs_data.find('name').string.lower() + '/' + currentGroupName.swapcase() + '.hpp', "w")
+    f = open(Bs_data.find('name').string.lower() + '/' + "reg_" + currentGroupName.swapcase() + '.hpp', "w")
 
     f.write("#pragma once\r\n")
     f.write("#include \"register.hpp\"\r\n")
-    f.write("namespace " + Bs_data.find('name').string.lower() + "::" + currentGroupName.lower()  + " {\r\n")
+    f.write("namespace " + Bs_data.find('name').string.lower() + "::registers::" + currentGroupName.lower()  + " {\r\n")
     #f.write("using namespace peripheral;\r\n")
 
     
