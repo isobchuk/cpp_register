@@ -703,7 +703,7 @@ public:
    *
    * @return constexpr SizeT The const address of the register
    */
-  [[nodiscard]] inline consteval Size operator&() { return sc_Address; }
+  [[nodiscard]] inline consteval RegisterAddress operator&() const { return sc_Address; }
 
   /**
    * @brief Operator '[]' to create the calculate the exact address of the register in the registers array
